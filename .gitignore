@@ -1,0 +1,6 @@
+# SCons build files
+.sconsign.dblite
+build/
+
+# MacOS Files
+.DS_Store

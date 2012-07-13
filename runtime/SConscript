@@ -1,0 +1,60 @@
+import sys
+
+Import('env')
+env.Append(CPPPATH = [env.Dir('include').abspath])
+runtime_env = env.Clone()
+
+# Files used for runtime library
+plugin_files = Glob('src/*.c', strings=True)
+
+# Assemble the runtime lib source files
+lib_files = plugin_files
+
+# Prune out excluded files
+excluded_files = []
+lib_files = [f for f in lib_files if f not in excluded_files]
+
+# Set path
+runtime_env.Append(CPPPATH = ['src', 'include'])
+
+# Determine additional compiler flags
+runtime_env.Append(CCFLAGS = ['-Wstrict-aliasing', '-Weverything', '-Wno-cast-align',
+                              '-Wno-sign-conversion', '-Werror', '-fstrict-aliasing'])
+
+runtime_env.Append(CPPDEFINES = ['KL_BUILD_LIBRARY'])
+
+if not (env['OS'] == 'ios' or env['OS'] == 'android'):
+   runtime_env.Append(CCFLAGS = ['-ansi', '-pedantic'])
+   runtime_env.Append(CFLAGS = ['-std=c89'])
+
+# SIMD Flags
+if env['OS'] == 'android':
+   runtime_env.Append(CPPDEFINES = ['__ARM_NEON__'])
+   runtime_env.Append(CCFLAGS = ['-mfloat-abi=softfp', '-mfpu=neon'])
+elif env['OS'] == 'ios':
+   runtime_env.Append(CPPDEFINES = ['KL_ARCH_NEON'])
+else:
+   runtime_env.Append(CCFLAGS = ['-msse3'])
+
+# Determine additional libraries
+runtime_env.Append(LIBS = ['libstdc++'])
+
+if not(env['OS'] == 'android' or env['OS'] == 'windows'):
+   runtime_env.Append(LIBS = ['pthread'])
+
+if (env['OS'] == 'ios' or env['OS'] == 'darwin'):
+   runtime_env.Append(LINKFLAGS = ['-framework', 'CoreServices',
+                                   '-framework', 'OpenGL',
+                                   '-framework', 'CoreMIDI'])
+
+# LuaJIT
+if '' == env.subst('$LUAJIT'):
+   env['LUAJIT'] = '/usr/local'
+runtime_env.Append(CPPPATH = [env['LUAJIT'] + '/include/luajit-2.0'])
+
+# Build lib
+runtime_env.Append(LIBS = ['FlightlessManicotti'])
+runtime_env.Append(LIBS = ['Zorya'])
+shared_lib = runtime_env.SharedLibrary('ZoryaPluginExample', lib_files, SHLIBPREFIX='')
+
+Return(['shared_lib'])
