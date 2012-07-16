@@ -4,3 +4,6 @@ build/
 
 # MacOS Files
 .DS_Store
+
+# Native plugin
+plugin/NativePluginExample/*.dylib

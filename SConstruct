@@ -96,10 +96,8 @@ env.Append(LIBPATH = [env.Dir('$ZORYA/lib').abspath])
 ## Now build the runtime and example
 runtime_library = env.SConscript('runtime/SConscript', variant_dir='$OBJDIR/runtime', duplicate = False)
 
-# Install in distribution folder
-installed_lib = env.Install('$DISTDIR/lib', runtime_library)
-env.Append(LIBPATH = [env.Dir('$DISTDIR/lib')])
-env.Prepend(LIBS = runtime_library)
+# Install in plugin folder
+installed_lib = env.Install('plugin/NativePluginExample', runtime_library)
 
 # Change search path for dependenant libs
 def rename_deps(target, source, env):
