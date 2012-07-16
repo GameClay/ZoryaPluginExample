@@ -83,22 +83,15 @@ else:
 
 # FlightlessManicotti paths
 if '' == env.subst('$MANICOTTI'):
-   env['MANICOTTI'] = '../FlightlessManicotti'
-
-env.Append(CPPPATH = [env.Dir(env['MANICOTTI'] + '/runtime/include').abspath])
-env.Append(CPPPATH = [env.Dir(env['MANICOTTI'] + '/runtime/src').abspath])
-env.Append(CPPPATH = [env.Dir(env['MANICOTTI'] + '/runtime/src/thirdparty/amp/src/c').abspath])
-
-env.Append(LIBPATH = [env.Dir('$MANICOTTI/$BUILDDIR/dist/lib').abspath])
+   env['MANICOTTI'] = '../FlightlessManicotti/$BUILDDIR/dist'
+env.Append(CPPPATH = [env.Dir('$MANICOTTI/include').abspath])
+env.Append(LIBPATH = [env.Dir('$MANICOTTI/lib').abspath])
 
 # Zorya paths
 if '' == env.subst('$ZORYA'):
-   env['ZORYA'] = '../Zorya'
-
-env.Append(CPPPATH = [env.Dir(env['ZORYA'] + '/runtime/include').abspath])
-env.Append(CPPPATH = [env.Dir(env['ZORYA'] + '/runtime/src').abspath])
-
-env.Append(LIBPATH = [env.Dir('$ZORYA/$BUILDDIR/dist/lib').abspath])
+   env['ZORYA'] = '../Zorya/$BUILDDIR/dist'
+env.Append(CPPPATH = [env.Dir('$ZORYA/include').abspath])
+env.Append(LIBPATH = [env.Dir('$ZORYA/lib').abspath])
 
 ## Now build the runtime and example
 runtime_library = env.SConscript('runtime/SConscript', variant_dir='$OBJDIR/runtime', duplicate = False)
