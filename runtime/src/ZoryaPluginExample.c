@@ -22,27 +22,54 @@
 #include <FlightlessManicotti/fm.h>
 #include <FlightlessManicotti/process/process.h>
 
+/* Forward declaration. */
 int KL_API luaopen_ZoryaPluginExample(lua_State* L);
 
+/**
+ * The registration name of the metatable for this plugin.
+ *
+ * Think of this like the name of a class. The rest of the functions
+ * in this file will define static methods and instance methods on this 'class'.
+ */
 const char* ZORYA_PLUGIN_EXAMPLE_LIB = "ZoryaPluginExample";
 
+/**
+ * Plugin example struct.
+ */
 typedef struct ZoryaPluginExample {
-   uint32_t pid;
-   uint32_t active;
+   uint32_t pid;     /**< Process id assigned by the FlightlessManicotti process manager */
+   uint32_t active;  /**< Boolean indicating if this instance is active in the Manicotti process manager */
 } ZoryaPluginExample;
 
+/**
+ * Callback function for advance time events.
+ *
+ * Advance time events are sent at a rate of 1 per frame, and occur before
+ * each frame is rendered.
+ *
+ * @param dt      The time, in miliseconds, since the last frame.
+ * @param context The context pointer provided to the process manager during kl_reserve_process_id.
+ */
 static void _ZoryaPluginExample_advance_time(float dt, void* context)
 {
    ZoryaPluginExample* example = (ZoryaPluginExample*)context;
    kl_log("Plugin example (pid: %d) advance_time %f", example->pid, dt);
 }
 
+/**
+ * Function called by Lua to allocate a new instance of the example.
+ */
 static int ZoryaPluginExample_new(lua_State* L)
 {
-   ZoryaPluginExample* example = lua_newuserdata(L, sizeof(ZoryaPluginExample));;
+   /* Allocate a plugin instance as userdata, memory managed by Lua. */
+   ZoryaPluginExample* example = lua_newuserdata(L, sizeof(ZoryaPluginExample));
+
+   /* Assign the metatable to the newly allocated userdata. */
    luaL_getmetatable(L, ZORYA_PLUGIN_EXAMPLE_LIB);
    lua_setmetatable(L, -2);
 
+   /* Reserve a process id from the FlightlessManicotti process manager,
+       and mark the instance as active */
    example->pid = kl_reserve_process_id(KL_DEFAULT_PROCESS_MANAGER,
       NULL, _ZoryaPluginExample_advance_time, example);
    example->active = 1;
@@ -52,12 +79,17 @@ static int ZoryaPluginExample_new(lua_State* L)
    return 1;
 }
 
+/**
+ * Function called by Lua to deactivate an instance of the example.
+ */
 static int ZoryaPluginExample_deactivate(lua_State* L)
 {
    ZoryaPluginExample* example = (ZoryaPluginExample*)lua_touserdata(L, 1);
 
    if(example->active == 1)
    {
+      /* Release the process id, removing this instance from the FlightlessManicotti
+         process manager, and mark the instance as inactive. */
       kl_log("Deactivating plugin example (pid: %d)", example->pid);
       kl_release_process_id(KL_DEFAULT_PROCESS_MANAGER, example->pid);
       example->active = 0;
@@ -66,6 +98,9 @@ static int ZoryaPluginExample_deactivate(lua_State* L)
    return 0;
 }
 
+/**
+ * Function called automatically by Lua when a plugin instance gets garbage collected.
+ */
 static int ZoryaPluginExample_gc(lua_State* L)
 {
    ZoryaPluginExample* example = (ZoryaPluginExample*)lua_touserdata(L, 1);
@@ -80,16 +115,28 @@ static int ZoryaPluginExample_gc(lua_State* L)
    return 0;
 }
 
+/**
+ * Lua function name, and C function pointer pairs which can be called on
+ * an instance of the plugin. Think of these as member methods on a class.
+ */
 static const struct luaL_reg ZoryaPluginExample_instance_methods [] = {
    {"deactivate", ZoryaPluginExample_deactivate},
    {NULL, NULL}
 };
 
+/**
+ * Lua function name, and C function pointer pairs which can be called on
+ * without an instance of the plugin. Think of these as static methods on a class.
+ */
 static const struct luaL_reg ZoryaPluginExample_class_methods [] = {
    {"new", ZoryaPluginExample_new},
    {NULL, NULL}
 };
 
+/**
+ * This function is called by Lua when the native library is brought into the
+ * Lua runtime using 'require'. It registers the static and instance methods
+ * for the plugin. */
 int LUA_API luaopen_ZoryaPluginExample(lua_State* L)
 {
    luaL_newmetatable(L, ZORYA_PLUGIN_EXAMPLE_LIB);

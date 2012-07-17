@@ -25,8 +25,11 @@ function ExamplePlugin.Native:reload()
    local fullpath = debug.getinfo(1).source
    local f, l, filepath = string.find(fullpath, "@(.+)%/[A-Za-z]+.lua")
 
-   -- Native library.
+   -- Append the path of this plugin to paths searched to load native packages.
    package.cpath = filepath.."/?.dylib;"..package.cpath
+
+   -- Import the native plugin, this will call the 'luaopen_ZoryaPluginExample'
+   -- function in the C library.
    require 'ZoryaPluginExample'
 end
 
@@ -57,14 +60,21 @@ function ExamplePlugin.Native.Visualization:new(o)
 end
 
 function ExamplePlugin.Native.Visualization:activate(render_elem)
+   -- Create a new instance of the native plugin, this will call the
+   -- ZoryaPluginExample_new function in the native library.
    print("Creating new native plugin instance...")
    self.nativePlugin = ZoryaPluginExample.new()
 end
 
 function ExamplePlugin.Native.Visualization:deactivate(render_elem)
+   -- Call deactivate on our instance of the native plugin. Calling an
+   -- instance method is done using the ':' operator.
+
+   -- This will invoke the ZoryaPluginExample_deactivate function in the native library,
+   -- and automatically push the userdata value for the instance onto the stack.
    self.nativePlugin:deactivate()
    self.nativePlugin = nil
 end
 
--- Register PlugIn
+-- Register PlugIn with the Zorya PlugIn manager.
 Zorya.PlugInManager.register(ExamplePlugin.Native)
