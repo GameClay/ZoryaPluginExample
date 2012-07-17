@@ -57,7 +57,13 @@ function ExamplePlugin.Native.Visualization:new(o)
 end
 
 function ExamplePlugin.Native.Visualization:activate(render_elem)
-   ZoryaPluginExample.helloworld()
+   print("Creating new native plugin instance...")
+   self.nativePlugin = ZoryaPluginExample.new()
+end
+
+function ExamplePlugin.Native.Visualization:deactivate(render_elem)
+   self.nativePlugin:deactivate()
+   self.nativePlugin = nil
 end
 
 -- Register PlugIn
