@@ -148,13 +148,12 @@ static int ZoryaPluginExample_startup(lua_State* L)
    }
 
    /* Do GPU init and update */
-   CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
-   CGLLockContext(g_script_render_context->resourceCGLContext);
+   kl_render_resource_lock(g_script_render_context);
    kl_mesh_init(&s_ExampleMesh);
    kl_mesh_buffer_data(&s_ExampleMesh,
       kl_mesh_element_vertex | kl_mesh_element_index, /* Update these elements */
       kl_mesh_element_vertex /* These elements should be marked as dynamic */);
-   CGLUnlockContext(g_script_render_context->resourceCGLContext);
+   kl_render_resource_unlock(g_script_render_context);
 
    /* Wire in to the process manager */
    s_MeshUpdatePID = kl_reserve_process_id(KL_DEFAULT_PROCESS_MANAGER,
