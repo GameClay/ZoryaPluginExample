@@ -18,9 +18,21 @@
 
 #include <lua.h>
 #include <lauxlib.h>
+#include <string.h>
 
 #include <FlightlessManicotti/fm.h>
 #include <FlightlessManicotti/process/process.h>
+#include <FlightlessManicotti/render/mesh/mesh.h>
+#include <FlightlessManicotti/render/opengl/gl_render.h>
+
+/**
+ * The script render context to use for locking the resource OpenGL
+ * context.
+ */
+extern kl_render_context_t g_script_render_context;
+
+/* Brought in from FlightlessManicotti */
+extern int Mesh_pushexisting(lua_State* L, kl_mesh_t* mesh);
 
 /* Forward declaration. */
 int KL_API luaopen_ZoryaPluginExample(lua_State* L);
@@ -40,6 +52,11 @@ typedef struct ZoryaPluginExample {
    uint32_t pid;     /**< Process id assigned by the FlightlessManicotti process manager */
    uint32_t active;  /**< Boolean indicating if this instance is active in the Manicotti process manager */
 } ZoryaPluginExample;
+
+/**
+ * Example of a plugin-managed mesh that can be exposed to Lua.
+ */
+static kl_mesh_t s_ExampleMesh;
 
 /**
  * Callback function for advance time events.
@@ -77,6 +94,43 @@ static int ZoryaPluginExample_new(lua_State* L)
    kl_log("Creating plugin example (pid: %d)", example->pid);
 
    return 1;
+}
+
+static int ZoryaPluginExample_getmesh(lua_State* L)
+{
+   return Mesh_pushexisting(L, &s_ExampleMesh);
+}
+
+static int ZoryaPluginExample_startup(lua_State* L)
+{
+   KL_UNUSED(L);
+
+   /* Initialize the shared mesh object */
+   memset(&s_ExampleMesh, 0, sizeof(kl_mesh_t));
+   CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
+   CGLLockContext(g_script_render_context->resourceCGLContext);
+   kl_mesh_init(&s_ExampleMesh);
+   CGLUnlockContext(g_script_render_context->resourceCGLContext);
+
+   return 0;
+}
+
+static int ZoryaPluginExample_shutdown(lua_State* L)
+{
+   KL_UNUSED(L);
+
+   /* Destroy the shared mesh object */
+   CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
+   CGLLockContext(g_script_render_context->resourceCGLContext);
+   kl_mesh_deinit(&s_ExampleMesh);
+   CGLUnlockContext(g_script_render_context->resourceCGLContext);
+
+   kl_heap_free(s_ExampleMesh.vertex);
+   kl_heap_free(s_ExampleMesh.normal);
+   kl_heap_free(s_ExampleMesh.tex0);
+   kl_heap_free(s_ExampleMesh.col0);
+   kl_heap_free(s_ExampleMesh.index);
+   return 0;
 }
 
 /**
@@ -130,6 +184,9 @@ static const struct luaL_reg ZoryaPluginExample_instance_methods [] = {
  */
 static const struct luaL_reg ZoryaPluginExample_class_methods [] = {
    {"new", ZoryaPluginExample_new},
+   {"getmesh", ZoryaPluginExample_getmesh},
+   {"startup", ZoryaPluginExample_startup},
+   {"shutdown", ZoryaPluginExample_shutdown},
    {NULL, NULL}
 };
 

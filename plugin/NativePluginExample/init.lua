@@ -17,10 +17,6 @@ function ExamplePlugin.Native:new(o)
 end
 
 function ExamplePlugin.Native:onregister(plugin_manager)
-   self:reload()
-end
-
-function ExamplePlugin.Native:reload()
    -- Get path of this file.
    local fullpath = debug.getinfo(1).source
    local f, l, filepath = string.find(fullpath, "@(.+)%/[A-Za-z]+.lua")
@@ -31,6 +27,19 @@ function ExamplePlugin.Native:reload()
    -- Import the native plugin, this will call the 'luaopen_ZoryaPluginExample'
    -- function in the C library.
    require 'ZoryaPluginExample'
+
+   ZoryaPluginExample.startup()
+   self:reload()
+end
+
+function ExamplePlugin.Native:onunregister(plugin_manager)
+   -- Release native resources when this plugin is shut down
+   print("Unregistering ZoryaPluginExample")
+   ZoryaPluginExample.shutdown()
+end
+
+function ExamplePlugin.Native:reload()
+   -- Nothing yet
 end
 
 function ExamplePlugin.Native:getvisualizations()
