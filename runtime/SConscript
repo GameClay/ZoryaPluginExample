@@ -44,8 +44,7 @@ if not(env['OS'] == 'android' or env['OS'] == 'windows'):
 
 if (env['OS'] == 'ios' or env['OS'] == 'darwin'):
    runtime_env.Append(LINKFLAGS = ['-framework', 'CoreServices',
-                                   '-framework', 'OpenGL',
-                                   '-framework', 'CoreMIDI'])
+                                   '-framework', 'OpenGL'])
 
 # LuaJIT
 if '' == env.subst('$LUAJIT'):

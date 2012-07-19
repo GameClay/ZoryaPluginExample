@@ -1,7 +1,7 @@
 /* -*- Mode: C; tab-width: 3; c-basic-offset: 3; indent-tabs-mode: nil -*- */
 /* vim: set filetype=C tabstop=3 softtabstop=3 shiftwidth=3 expandtab: */
 
-/* FlightlessManicotti -- Copyright (C) 2010-2012 GameClay LLC
+/* ZoryaPluginExample -- Copyright (C) 2010-2012 GameClay LLC
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #include <FlightlessManicotti/process/process.h>
 #include <FlightlessManicotti/render/mesh/mesh.h>
 #include <FlightlessManicotti/render/opengl/gl_render.h>
+
+#include <Zorya/beat/freq.h>
 
 /**
  * The script render context to use for locking the resource OpenGL
@@ -49,8 +51,7 @@ const char* ZORYA_PLUGIN_EXAMPLE_LIB = "ZoryaPluginExample";
  * Plugin example struct.
  */
 typedef struct ZoryaPluginExample {
-   uint32_t pid;     /**< Process id assigned by the FlightlessManicotti process manager */
-   uint32_t active;  /**< Boolean indicating if this instance is active in the Manicotti process manager */
+   uint32_t active;  /**< Boolean indicating if this instance is active (for no good reason) */
 } ZoryaPluginExample;
 
 /**
@@ -59,7 +60,12 @@ typedef struct ZoryaPluginExample {
 static kl_mesh_t s_ExampleMesh;
 
 /**
- * Callback function for advance time events.
+ * Mesh update PID
+ */
+static uint32_t s_MeshUpdatePID;
+
+/**
+ * Callback function to update the shared mesh.
  *
  * Advance time events are sent at a rate of 1 per frame, and occur before
  * each frame is rendered.
@@ -67,10 +73,28 @@ static kl_mesh_t s_ExampleMesh;
  * @param dt      The time, in miliseconds, since the last frame.
  * @param context The context pointer provided to the process manager during kl_reserve_process_id.
  */
-static void _ZoryaPluginExample_advance_time(float dt, void* context)
+static void _ZoryaPluginExample_MeshUpdate(float dt, void* context)
 {
-   ZoryaPluginExample* example = (ZoryaPluginExample*)context;
-   kl_log("Plugin example (pid: %d) advance_time %f", example->pid, dt);
+   size_t cqt_sz, i;
+   kl_cqt_t cqt = kl_freq_manager_get_cqt(KL_DEFAULT_FREQ_MANAGER);
+   float* cqt_spectrum = kl_cqt_get_spectrum(cqt, &cqt_sz);
+
+   KL_UNUSED(context);
+   KL_UNUSED(dt);
+
+   for(i = 0; i < cqt_sz; i++)
+   {
+      float* vert = &s_ExampleMesh.vertex[i * 3];
+      vert[1] = cqt_spectrum[i];
+   }
+
+   /* Lock resource context, and update mesh */
+   CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
+   CGLLockContext(g_script_render_context->resourceCGLContext);
+   kl_mesh_buffer_data(&s_ExampleMesh,
+      kl_mesh_element_vertex, /* Update Mesh only */
+      kl_mesh_element_vertex /* And it's a dynamic update */);
+   CGLUnlockContext(g_script_render_context->resourceCGLContext);
 }
 
 /**
@@ -85,13 +109,9 @@ static int ZoryaPluginExample_new(lua_State* L)
    luaL_getmetatable(L, ZORYA_PLUGIN_EXAMPLE_LIB);
    lua_setmetatable(L, -2);
 
-   /* Reserve a process id from the FlightlessManicotti process manager,
-       and mark the instance as active */
-   example->pid = kl_reserve_process_id(KL_DEFAULT_PROCESS_MANAGER,
-      NULL, _ZoryaPluginExample_advance_time, example);
-   example->active = 1;
+   /* Mark the instance as active */
 
-   kl_log("Creating plugin example (pid: %d)", example->pid);
+   example->active = 1;
 
    return 1;
 }
@@ -103,14 +123,42 @@ static int ZoryaPluginExample_getmesh(lua_State* L)
 
 static int ZoryaPluginExample_startup(lua_State* L)
 {
+   kl_cqt_t cqt = kl_freq_manager_get_cqt(KL_DEFAULT_FREQ_MANAGER);
+   int i, spectrum_sz;
+
    KL_UNUSED(L);
 
    /* Initialize the shared mesh object */
    memset(&s_ExampleMesh, 0, sizeof(kl_mesh_t));
+
+   /* Allocate mesh vertices and indices */
+   spectrum_sz = cqt->binsPerOctave * cqt->num_octaves;
+   s_ExampleMesh.vertex = kl_heap_alloc(sizeof(float) * 3 * spectrum_sz);
+   s_ExampleMesh.num_verts = spectrum_sz;
+   s_ExampleMesh.index = kl_heap_alloc(sizeof(uint16_t) * spectrum_sz);
+   s_ExampleMesh.num_indices = spectrum_sz;
+
+   for(i = 0; i < spectrum_sz; i++)
+   {
+      float* vert = &s_ExampleMesh.vertex[i * 3];
+      vert[0] = (float)i / (float)spectrum_sz;
+      vert[1] = 0.0f; /* Will be filled in during update */
+      vert[2] = (float)i / (float)cqt->binsPerOctave;
+      s_ExampleMesh.index[i] = (uint16_t)i;
+   }
+
+   /* Do GPU init and update */
    CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
    CGLLockContext(g_script_render_context->resourceCGLContext);
    kl_mesh_init(&s_ExampleMesh);
+   kl_mesh_buffer_data(&s_ExampleMesh,
+      kl_mesh_element_vertex | kl_mesh_element_index, /* Update these elements */
+      kl_mesh_element_vertex /* These elements should be marked as dynamic */);
    CGLUnlockContext(g_script_render_context->resourceCGLContext);
+
+   /* Wire in to the process manager */
+   s_MeshUpdatePID = kl_reserve_process_id(KL_DEFAULT_PROCESS_MANAGER,
+      NULL, _ZoryaPluginExample_MeshUpdate, NULL);
 
    return 0;
 }
@@ -118,6 +166,9 @@ static int ZoryaPluginExample_startup(lua_State* L)
 static int ZoryaPluginExample_shutdown(lua_State* L)
 {
    KL_UNUSED(L);
+
+   /* Remove self from process manager */
+   kl_release_process_id(KL_DEFAULT_PROCESS_MANAGER, s_MeshUpdatePID);
 
    /* Destroy the shared mesh object */
    CGLSetCurrentContext(g_script_render_context->resourceCGLContext);
@@ -142,10 +193,7 @@ static int ZoryaPluginExample_deactivate(lua_State* L)
 
    if(example->active == 1)
    {
-      /* Release the process id, removing this instance from the FlightlessManicotti
-         process manager, and mark the instance as inactive. */
-      kl_log("Deactivating plugin example (pid: %d)", example->pid);
-      kl_release_process_id(KL_DEFAULT_PROCESS_MANAGER, example->pid);
+      kl_log("Deactivating plugin example %p", example);
       example->active = 0;
    }
 
@@ -159,12 +207,9 @@ static int ZoryaPluginExample_gc(lua_State* L)
 {
    ZoryaPluginExample* example = (ZoryaPluginExample*)lua_touserdata(L, 1);
 
-   if(example->active == 1)
-   {
-      ZoryaPluginExample_deactivate(L);
-   }
-
-   kl_log("Destroying plugin example (pid: %d)");
+   /* Note that there is no need to delete things allocated with lua_newuserdata,
+   that memory is managed by Lua. */
+   KL_UNUSED(example);
 
    return 0;
 }
